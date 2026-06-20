@@ -9,7 +9,7 @@ return [
         'parent' => 'web',
         'position' => [],
         'access' => 'user',
-        'workspaces' => '*',
+        'workspaces' => 'offline',
         'path' => '/module/batchtranslation',
         'labels' => 'LLL:EXT:autotranslate/Resources/Private/Language/locallang_mod.xlf',
         'extensionName' => 'Autotranslate',

@@ -9,6 +9,7 @@ use Psr\Log\LoggerAwareInterface;
 use Psr\Log\LoggerAwareTrait;
 use ThieleUndKlose\Autotranslate\Service\GlossaryService;
 use ThieleUndKlose\Autotranslate\Service\TranslationCacheService;
+use TYPO3\CMS\Core\Authentication\BackendUserAuthentication;
 use TYPO3\CMS\Core\Configuration\ExtensionConfiguration;
 use TYPO3\CMS\Core\Database\Connection;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
@@ -198,7 +199,7 @@ final class Translator implements LoggerAwareInterface
 
             if (!$existingTranslation) {
                 $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
-                $dataHandler->start([], []);
+                $dataHandler->start([], [], $this->configuredWorkspaceUser());
                 $localizedUid = $dataHandler->localize($table, $recordUid, (int)$languageId);
             } else {
                 $localizedUid = (int)$existingTranslation['uid'];
@@ -506,7 +507,7 @@ final class Translator implements LoggerAwareInterface
 
         if (empty($referenceTranslation)) {
             $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
-            $dataHandler->start([], []);
+            $dataHandler->start([], [], $this->configuredWorkspaceUser());
             $translatedReferenceUid = (int)$dataHandler->localize($referenceTable, $referenceUid, $languageId);
 
             $this->updateTranslatedRecord(
@@ -1466,7 +1467,31 @@ final class Translator implements LoggerAwareInterface
     private function updateTranslatedRecord(string $table, int $uid, array $data): void
     {
         $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
-        $dataHandler->start([$table => [$uid => $data]], []);
+        $dataHandler->start([$table => [$uid => $data]], [], $this->configuredWorkspaceUser());
         $dataHandler->process_datamap();
+    }
+
+    /**
+     * Build a backend-user context for the configured translation workspace WITHOUT
+     * touching the global $GLOBALS['BE_USER']. DataHandler decides the workspace for
+     * its writes from $this->BE_USER->workspace; passing a workspace-scoped user as the
+     * third argument to start() (the documented way to "force another backend user")
+     * routes localize() / process_datamap() into that workspace. Cloning the current
+     * user keeps its permissions while changing only the workspace, so the global user
+     * is never switched - safe even if other code shares the request. Returns null
+     * (=> DataHandler falls back to the global user / live) when no workspace is set.
+     */
+    private function configuredWorkspaceUser(): ?BackendUserAuthentication
+    {
+        $workspaceId = (int)(TranslationHelper::siteConfigurationValue(
+            $this->pageId,
+            ['autotranslateWorkspaceId']
+        ) ?? 0);
+        if ($workspaceId <= 0 || !isset($GLOBALS['BE_USER'])) {
+            return null;
+        }
+        $workspaceUser = clone $GLOBALS['BE_USER'];
+        $workspaceUser->workspace = $workspaceId;
+        return $workspaceUser;
     }
 }

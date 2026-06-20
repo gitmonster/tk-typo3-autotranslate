@@ -195,6 +195,23 @@ foreach ($referenceTablesToTranslate as $table) {
     $palettes['autotranslate' . $tableUpperCamelCase] = ['showitem' => $fieldname];
 }
 
+// Translation workspace: route every autotranslate into the selected workspace
+// (as a draft) instead of the live record. "Live" (= 0) keeps the default behaviour.
+$GLOBALS['SiteConfiguration']['site']['columns']['autotranslateWorkspaceId'] = [
+    'label' => 'Translation workspace',
+    'description' => 'Workspace all autotranslate output is routed into (via DataHandler). '
+        . 'Leave "Live" to write translations directly to the live record as before. '
+        . 'When a workspace is selected, batch and single translations land there as '
+        . 'drafts until published, regardless of where the translation is triggered.',
+    'config' => [
+        'type' => 'select',
+        'renderType' => 'selectSingle',
+        'itemsProcFunc' => 'ThieleUndKlose\\Autotranslate\\UserFunction\\FormEngine\\WorkspaceItems->itemsProcFunc',
+        'default' => 0,
+    ],
+];
+$palettes['autotranslateWorkspace'] = ['showitem' => 'autotranslateWorkspaceId'];
+
 $GLOBALS['SiteConfiguration']['site']['palettes'] = array_merge($GLOBALS['SiteConfiguration']['site']['palettes'], $palettes);
 $showItem = ',--palette--;;' . implode(',--palette--;;', array_keys($palettes));
 $GLOBALS['SiteConfiguration']['site']['types']['0']['showitem'] .= ', --div--;Autotranslate' . $showItem;
