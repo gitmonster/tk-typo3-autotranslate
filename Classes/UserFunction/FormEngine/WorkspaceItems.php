@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace ThieleUndKlose\Autotranslate\UserFunction\FormEngine;
 
-use ThieleUndKlose\Autotranslate\Utility\Records;
-use TYPO3\CMS\Core\Database\Query\QueryBuilder;
+use TYPO3\CMS\Core\Database\ConnectionPool;
+use TYPO3\CMS\Core\Utility\GeneralUtility;
 
 /**
  * Populates the "autotranslateWorkspaceId" site-configuration dropdown with the
@@ -22,13 +22,16 @@ final class WorkspaceItems
             'value' => 0,
         ];
 
-        $workspaces = Records::getRecords(
-            'sys_workspace',
-            'uid,title',
-            static function (QueryBuilder $queryBuilder): void {
-                $queryBuilder->orderBy('title');
-            }
-        );
+        // Query sys_workspace directly for rows - Records::getRecords() returns only
+        // the first column (fetchFirstColumn), so it cannot provide title + uid.
+        $queryBuilder = GeneralUtility::makeInstance(ConnectionPool::class)
+            ->getQueryBuilderForTable('sys_workspace');
+        $workspaces = $queryBuilder
+            ->select('uid', 'title')
+            ->from('sys_workspace')
+            ->orderBy('title')
+            ->executeQuery()
+            ->fetchAllAssociative();
 
         foreach ($workspaces as $workspace) {
             $config['items'][] = [
