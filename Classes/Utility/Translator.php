@@ -286,7 +286,7 @@ final class Translator implements LoggerAwareInterface
                 $translatedColumns = $this->translateRecordProperties($record, (int)$languageId, $columnsForLanguage, $table, $localizedUid);
 
                 if (count($translatedColumns) > 0) {
-                    Records::updateRecord($table, $localizedUid, $translatedColumns);
+                    $this->updateTranslatedRecord($table, $localizedUid, $translatedColumns);
                     $didTranslate = true;
                     $translatedFieldNames = array_merge(
                         $translatedFieldNames,
@@ -509,7 +509,7 @@ final class Translator implements LoggerAwareInterface
             $dataHandler->start([], []);
             $translatedReferenceUid = (int)$dataHandler->localize($referenceTable, $referenceUid, $languageId);
 
-            Records::updateRecord(
+            $this->updateTranslatedRecord(
                 $referenceTable,
                 $translatedReferenceUid,
                 [
@@ -569,7 +569,7 @@ final class Translator implements LoggerAwareInterface
             return [];
         }
 
-        Records::updateRecord($referenceTable, $translatedReferenceUid, $translatedColumns);
+        $this->updateTranslatedRecord($referenceTable, $translatedReferenceUid, $translatedColumns);
 
         return array_values(array_intersect(array_keys($translatedColumns), $columnsReference));
     }
@@ -1448,7 +1448,25 @@ final class Translator implements LoggerAwareInterface
         }
 
         if (!empty($fieldsToUpdate)) {
-            Records::updateRecord($table, $uid, $fieldsToUpdate);
+            $this->updateTranslatedRecord($table, $uid, $fieldsToUpdate);
         }
+    }
+
+    /**
+     * Persist translated record fields through DataHandler instead of a direct
+     * database write, so the update respects the active workspace: it lands in a
+     * draft version when the executing user (e.g. the scheduler's _cli_ user) is in
+     * a workspace, and on the live row otherwise. localize() above already routes
+     * through DataHandler; the content and slug writes must do the same to stay
+     * consistent - otherwise they would bypass workspace versioning and hit the live
+     * row directly. Source-side bookkeeping (autotranslate_last,
+     * autotranslate_source_hash) is intentionally kept as a direct write on the live
+     * source record.
+     */
+    private function updateTranslatedRecord(string $table, int $uid, array $data): void
+    {
+        $dataHandler = GeneralUtility::makeInstance(DataHandler::class);
+        $dataHandler->start([$table => [$uid => $data]], []);
+        $dataHandler->process_datamap();
     }
 }
